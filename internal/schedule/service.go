@@ -23,6 +23,27 @@ func (s *Service) Create(ctx context.Context, chamberID string, direction model.
 	return s.planner.Create(ctx, chamberID, direction, vessels)
 }
 
+// Preview reports the loading outcome without creating a plan or touching
+// the admission queue.
+func (s *Service) Preview(chamberID string, vessels []model.Vessel) (model.StowageReport, error) {
+	return s.planner.Preview(chamberID, vessels)
+}
+
+// StowageConfig returns the configured loading geometry for a chamber.
+func (s *Service) StowageConfig(chamberID string) (model.StowageConfig, error) {
+	return s.planner.Stowage().Registry().Get(chamberID)
+}
+
+// SetStowageConfig validates and updates a chamber's loading geometry.
+func (s *Service) SetStowageConfig(config model.StowageConfig) error {
+	return s.planner.Stowage().Registry().Set(config)
+}
+
+// StowageConfigs lists chamber loading geometry in runtime chamber order.
+func (s *Service) StowageConfigs(orderedIDs []string) []model.StowageConfig {
+	return s.planner.Stowage().Registry().List(orderedIDs)
+}
+
 func (s *Service) Publish(ctx context.Context, planID uuid.UUID, cycle model.TransitCycle) (signal.Publication, error) {
 	plan, ok := s.planner.Get(planID)
 	if !ok || plan.Cancelled {

@@ -22,23 +22,27 @@ func NewVessel(name, callSign string, lengthM float64) (Vessel, error) {
 }
 
 type ConvoyPlan struct {
-	ID         uuid.UUID `json:"id"`
-	ChamberID  string    `json:"chamber_id"`
-	Direction  Direction `json:"direction"`
-	Vessels    []Vessel  `json:"vessels"`
-	CreatedAt  time.Time `json:"created_at"`
-	Cancelled  bool      `json:"cancelled"`
-	CancelNote string    `json:"cancel_note,omitempty"`
+	ID         uuid.UUID     `json:"id"`
+	ChamberID  string        `json:"chamber_id"`
+	Direction  Direction     `json:"direction"`
+	Vessels    []Vessel      `json:"vessels"`
+	Stowage    StowageReport `json:"stowage"`
+	CreatedAt  time.Time     `json:"created_at"`
+	Cancelled  bool          `json:"cancelled"`
+	CancelNote string        `json:"cancel_note,omitempty"`
 }
 
-func NewConvoyPlan(chamberID string, direction Direction, vessels []Vessel, now time.Time) (ConvoyPlan, error) {
+func NewConvoyPlan(chamberID string, direction Direction, vessels []Vessel, stowage StowageReport, now time.Time) (ConvoyPlan, error) {
 	if chamberID == "" || !direction.Valid() || len(vessels) == 0 {
 		return ConvoyPlan{}, errors.New("plan requires chamber, direction and vessels")
+	}
+	if stowage.ChamberID != chamberID || stowage.VesselCount != len(vessels) {
+		return ConvoyPlan{}, errors.New("plan requires a stowage report covering every vessel")
 	}
 	copyOfVessels := append([]Vessel(nil), vessels...)
 	return ConvoyPlan{
 		ID: uuid.New(), ChamberID: chamberID, Direction: direction,
-		Vessels: copyOfVessels, CreatedAt: now.UTC(),
+		Vessels: copyOfVessels, Stowage: stowage, CreatedAt: now.UTC(),
 	}, nil
 }
 

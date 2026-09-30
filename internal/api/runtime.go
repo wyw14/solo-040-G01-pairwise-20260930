@@ -16,6 +16,7 @@ import (
 	"github.com/wyw14/cry-96/internal/safety"
 	"github.com/wyw14/cry-96/internal/schedule"
 	"github.com/wyw14/cry-96/internal/signal"
+	"github.com/wyw14/cry-96/internal/stowage"
 )
 
 // Runtime contains the long-lived component graph used by HTTP handlers.
@@ -32,6 +33,8 @@ type Runtime struct {
 	Admission       *admission.Service
 	Planner         *schedule.Planner
 	Schedule        *schedule.Service
+	StowageRegistry *stowage.Registry
+	Stowage         *stowage.Planner
 	Hydraulics      *hydraulics.Controller
 	Interlocks      *interlock.Coordinator
 	Cycles          *cycle.Coordinator
@@ -55,6 +58,8 @@ func NewRuntime(ctx context.Context, dataDirectory string) (*Runtime, error) {
 	}
 	recorder := journal.NewRecorder(store, now)
 	chambers := []string{"chamber-1", "chamber-2"}
+	stowageRegistry := stowage.NewRegistry(chambers...)
+	stowagePlanner := stowage.NewPlanner(stowageRegistry)
 	gateState := gate.NewState(chambers...)
 	gateCommands := gate.NewCommands()
 	gateController := gate.NewController(gateState, gateCommands, recorder, now)
@@ -67,7 +72,7 @@ func NewRuntime(ctx context.Context, dataDirectory string) (*Runtime, error) {
 	leaseRegistry := lease.NewRegistry()
 	leaseService := lease.NewService(leaseRegistry, admissionController, recorder, now)
 	leaseSweeper := lease.NewSweeper(leaseRegistry, now)
-	planner := schedule.NewPlanner(admissionService, recorder, now)
+	planner := schedule.NewPlanner(stowagePlanner, admissionService, recorder, now)
 	scheduleService := schedule.NewService(planner, signalPublisher)
 	ramp := hydraulics.NewRamp(25*time.Millisecond, now)
 	hydraulicsController := hydraulics.NewController(gateCommands, recorder, ramp, now)
@@ -111,10 +116,12 @@ func NewRuntime(ctx context.Context, dataDirectory string) (*Runtime, error) {
 		GateCommands: gateCommands, Gates: gateController,
 		SignalStore: signalStore, SignalPublisher: signalPublisher, Signals: signalService,
 		AdmissionQueue: admissionController.Queue(), Admission: admissionService,
-		Planner: planner, Schedule: scheduleService, Hydraulics: hydraulicsController,
+		Planner: planner, Schedule: scheduleService,
+		StowageRegistry: stowageRegistry, Stowage: stowagePlanner,
+		Hydraulics: hydraulicsController,
 		Interlocks: interlockCoordinator, Cycles: cycleCoordinator, CycleService: cycleService,
 		Leases: leaseService, LeaseSweeper: leaseSweeper, Safety: safetyService,
-		Snapshot:  monitor.NewSnapshot(cycleCoordinator, gateState, admissionService, signalService, safetyService, now),
+		Snapshot:  monitor.NewSnapshot(cycleCoordinator, gateState, admissionService, signalService, safetyService, stowagePlanner, now),
 		Incidents: monitor.NewIncidentReview(store), Health: health, Recovery: recovery,
 		Chambers: chambers, Now: now,
 	}, nil

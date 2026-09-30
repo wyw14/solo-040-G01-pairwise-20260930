@@ -11,29 +11,41 @@ import (
 	"github.com/wyw14/cry-96/internal/admission"
 	"github.com/wyw14/cry-96/internal/journal"
 	"github.com/wyw14/cry-96/internal/model"
+	"github.com/wyw14/cry-96/internal/stowage"
 )
 
 // Planner owns convoy plans and their admission queue membership.
 type Planner struct {
 	mu        sync.RWMutex
 	plans     map[uuid.UUID]model.ConvoyPlan
+	stowage   *stowage.Planner
 	admission *admission.Service
 	recorder  *journal.Recorder
 	now       func() time.Time
 }
 
-func NewPlanner(admissionService *admission.Service, recorder *journal.Recorder, now func() time.Time) *Planner {
+func NewPlanner(stowagePlanner *stowage.Planner, admissionService *admission.Service, recorder *journal.Recorder, now func() time.Time) *Planner {
 	if now == nil {
 		now = time.Now
 	}
 	return &Planner{
-		plans: make(map[uuid.UUID]model.ConvoyPlan), admission: admissionService,
-		recorder: recorder, now: now,
+		plans: make(map[uuid.UUID]model.ConvoyPlan), stowage: stowagePlanner,
+		admission: admissionService, recorder: recorder, now: now,
 	}
 }
 
+// Stowage exposes the loading planner for previews and configuration access.
+func (p *Planner) Stowage() *stowage.Planner { return p.stowage }
+
 func (p *Planner) Create(ctx context.Context, chamberID string, direction model.Direction, vessels []model.Vessel) (model.ConvoyPlan, error) {
-	plan, err := model.NewConvoyPlan(chamberID, direction, vessels, p.now())
+	// Strict loading runs before any side effect: an overflow produces a
+	// detailed ExceedanceError and must never leave a half-filled plan or
+	// queue entries behind.
+	report, err := p.stowage.PlanForChamber(chamberID, vessels)
+	if err != nil {
+		return model.ConvoyPlan{}, err
+	}
+	plan, err := model.NewConvoyPlan(chamberID, direction, vessels, report, p.now())
 	if err != nil {
 		return model.ConvoyPlan{}, err
 	}
@@ -51,6 +63,11 @@ func (p *Planner) Create(ctx context.Context, chamberID string, direction model.
 		return model.ConvoyPlan{}, err
 	}
 	return plan.Clone(), nil
+}
+
+// Preview runs the loading calculation without creating a plan.
+func (p *Planner) Preview(chamberID string, vessels []model.Vessel) (model.StowageReport, error) {
+	return p.stowage.EvaluateForChamber(chamberID, vessels)
 }
 
 func (p *Planner) Get(planID uuid.UUID) (model.ConvoyPlan, bool) {

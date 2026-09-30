@@ -40,6 +40,11 @@ func createPlanHandler(runtime *Runtime) http.HandlerFunc {
 		}
 		plan, err := runtime.Schedule.Create(r.Context(), input.ChamberID, input.Direction, vessels)
 		if err != nil {
+			var exceedance *model.ExceedanceError
+			if errors.As(err, &exceedance) {
+				writeStowageExceeded(w, exceedance)
+				return
+			}
 			writeError(w, http.StatusConflict, err)
 			return
 		}

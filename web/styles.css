@@ -53,6 +53,13 @@ th { color: #91a0a8; font-weight: 600; }
 .status.warning::before { background: #f2c14e; }
 .status.critical::before { background: #ef6f6c; }
 .message { min-height: 22px; color: #f2c14e; font-size: 13px; margin-top: 10px; white-space: pre-wrap; }
+h3 { font-size: 14px; margin: 14px 0 8px; font-weight: 600; }
+.stow-result { border: 1px solid #33404a; border-radius: 4px; padding: 10px 12px; margin-top: 12px; background: #0f1418; }
+.stow-result h3:first-child { margin-top: 0; }
+.stow-result.fitted { border-left: 3px solid #5bc0be; }
+.stow-result.exceeded { border-left: 3px solid #ef6f6c; }
+.stow-result.exceeded strong { color: #ef6f6c; }
+#vessel-rows input { min-height: 34px; }
 @media (max-width: 780px) {
   header { height: auto; padding: 14px 18px; align-items: flex-start; flex-direction: column; gap: 10px; }
   main { padding: 20px 16px 40px; }
